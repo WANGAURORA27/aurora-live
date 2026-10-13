@@ -1,0 +1,12 @@
+{
+  "name": "live-interpreter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LiveBridge 同声传译：浏览器麦克风采集 → 语音识别 → 句子级流式翻译 → 语音播报（OpenAI 兼容 API 驱动，零依赖）",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "engines": { "node": ">=18.0.0" }
+}

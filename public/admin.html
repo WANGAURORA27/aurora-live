@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LiveBridge 管理面板</title>
+<style>
+:root{--bg:#0b1020;--panel:#141a2e;--panel2:#1b2340;--line:#28304d;--tx:#e8ecf8;--mut:#8f9ac0;--acc:#4da3ff;--ok:#37d67a;--warn:#ffb020;--red:#ff5c7a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);font-size:12.5px}
+input,button,select{font:inherit;color:var(--tx);background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.pri{background:#22305a}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 16px}
+.tabs button.on{background:#22305a;border-color:var(--acc)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card .k{color:var(--mut);font-size:12px}.card .v{font-size:22px;font-weight:650;margin-top:4px}
+.card .v small{font-size:12px;font-weight:400;color:var(--mut)}
+h2{font-size:15px;margin:20px 0 10px}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{padding:8px 11px;text-align:left;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:13px}
+th{color:var(--mut);font-weight:500;font-size:12px}tr:last-child td{border-bottom:none}
+.lim{margin:10px 0}.lim .t{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mut);margin-bottom:5px}
+.track{height:8px;background:var(--panel2);border-radius:99px;overflow:hidden}.fill{height:100%;background:linear-gradient(90deg,var(--acc),#7bd0ff)}
+.fill.w{background:linear-gradient(90deg,var(--warn),#ffd48a)}.fill.r{background:linear-gradient(90deg,var(--red),#ff9db0)}
+.tag{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11.5px;border:1px solid var(--line);color:var(--mut)}
+.tag.ok{color:var(--ok);border-color:#1f5c3d}.tag.bad{color:var(--red);border-color:#5c1f2c}
+.log{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;max-height:420px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.log div{padding:3px 0;border-bottom:1px dashed #222a45}.log .warn{color:var(--warn)}.log .error{color:var(--red)}
+.err{color:var(--red);min-height:18px;font-size:12.5px}.hint{color:var(--mut);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🛠 LiveBridge 管理面板</h1>
+<div class="sub">服务状态 · 用量成本 · 词库纠错 · 通道自检 · 错误日志</div>
+<div class="bar">
+  <input id="tok" type="password" placeholder="管理口令 ADMIN_TOKEN" style="min-width:280px" />
+  <button class="pri" id="go">查询</button>
+  <button id="clr">清除口令</button>
+  <span class="sub" id="day"></span>
+</div>
+<div class="err" id="err"></div>
+<div class="tabs">
+  <button data-tab="ov" class="on">总览</button>
+  <button data-tab="use">用量明细</button>
+  <button data-tab="lib">词库 / 纠错</button>
+  <button data-tab="log">日志</button>
+</div>
+<div id="tab-ov">
+  <div class="cards" id="cards"></div>
+  <h2>额度使用</h2><div id="limits"></div>
+  <h2>识别 / 翻译通道</h2><div id="providers"></div>
+  <h2>通道自检</h2>
+  <div class="bar"><button id="probe">立即自检（识别主/备通道）</button><span class="sub" id="probeOut"></span></div>
+</div>
+<div id="tab-use" hidden>
+  <h2>访客明细（Top 20）</h2>
+  <table><thead><tr><th>IP</th><th>识别时长(分)</th><th>翻译调用</th><th>估算费用(元)</th></tr></thead><tbody id="rows"></tbody></table>
+  <p class="hint" id="prices"></p>
+</div>
+<div id="tab-lib" hidden>
+  <h2>新增条目</h2>
+  <div class="bar">
+    <select id="addKind"><option value="fix">纠错（错听→正确）</option><option value="term">术语（英文=中文）</option><option value="oral">口语（词→处理）</option></select>
+    <input id="addKey" placeholder="错听/英文词" />
+    <input id="addVal" placeholder="正确写法 / 中文译法 / （删除）" />
+    <button class="pri" id="addBtn">添加</button>
+  </div>
+  <h2>纠错表 <span class="sub" id="fixCount"></span></h2>
+  <table><thead><tr><th>错听</th><th>正确</th><th></th></tr></thead><tbody id="fixRows"></tbody></table>
+  <h2>自动术语 <span class="sub" id="termCount"></span></h2>
+  <table><thead><tr><th>术语</th><th>译法</th><th></th></tr></thead><tbody id="termRows"></tbody></table>
+  <h2>自动口语 <span class="sub" id="oralCount"></span></h2>
+  <table><thead><tr><th>口语词</th><th>处理</th><th></th></tr></thead><tbody id="oralRows"></tbody></table>
+</div>
+<div id="tab-log" hidden>
+  <div class="bar"><button id="logReload">刷新日志</button><span class="sub">最近 200 条（服务端 warn/error）</span></div>
+  <div class="log" id="logBox"></div>
+</div>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const fmt = (n, d = 2) => (n === undefined || n === null) ? "-" : Number(n).toFixed(d);
+let TOK = "";
+const api = (path, opt) => fetch("/api/admin/" + path + "?token=" + encodeURIComponent(TOK), Object.assign({ headers: { "Content-Type": "application/json", "X-Admin-Token": TOK } }, opt || {}));
+function bar(label, used, max, unit) {
+  const pct = max > 0 ? Math.min(100, used / max * 100) : 0;
+  const cls = pct >= 90 ? "r" : pct >= 70 ? "w" : "";
+  return `<div class="lim"><div class="t"><span>${label}</span><span>${fmt(used,2)} / ${fmt(max,2)} ${unit}（${fmt(pct,1)}%）</span></div><div class="track"><div class="fill ${cls}" style="width:${pct}%"></div></div></div>`;
+}
+async function loadOverview() {
+  const r = await api("overview"); const d = await r.json();
+  if (!r.ok) throw new Error(d.error || r.status);
+  $("#day").textContent = "统计日期：" + d.usage.day;
+  const up = d.uptimeSec, h = Math.floor(up / 3600), m = Math.floor(up % 3600 / 60);
+  $("#cards").innerHTML = [
+    `<div class="card"><div class="k">服务运行时长</div><div class="v">${h}h ${m}m</div></div>`,
+    `<div class="card"><div class="k">今日识别</div><div class="v">${fmt(d.usage.total.sttSec/60,0)} <small>分钟 / ${d.usage.total.sttCalls} 次</small></div></div>`,
+    `<div class="card"><div class="k">今日翻译</div><div class="v">${d.usage.total.trCalls} <small>次</small></div></div>`,
+    `<div class="card"><div class="k">估算费用</div><div class="v">¥${fmt(d.usage.cost.total,3)}</div></div>`,
+    `<div class="card"><div class="k">访客数 / 内存</div><div class="v">${d.usage.ips} <small>IP · ${d.mem.freeMB}MB 可用</small></div></div>`,
+    `<div class="card"><div class="k">磁盘</div><div class="v">${d.disk ? d.disk.usePct : "-"} <small>${d.disk ? d.disk.used + "/" + d.disk.size : ""}</small></div></div>`,
+    `<div class="card"><div class="k">词库</div><div class="v">${d.libs.glossaryFixed + d.libs.glossaryAuto} <small>术语 · 口语 ${d.libs.oralFixed + d.libs.oralAuto} · 纠错 ${d.libs.fixes}</small></div></div>`,
+    `<div class="card"><div class="k">负载 (1/5/15m)</div><div class="v">${d.load.join(" / ")}</div></div>`,
+  ].join("");
+  const L = d.limits, u = d.usage.total;
+  $("#limits").innerHTML = [
+    bar("全站识别额度", u.sttSec / 3600, L.globalSttHours, "小时"),
+    bar("全站翻译调用额度", u.trCalls, L.globalTranslateCalls, "次"),
+    `<div class="hint">限额：${L.enabled ? "已启用" : "已关闭"} · 单 IP ${L.perIpSttHours} 小时 / ${L.perIpTranslateCalls.toLocaleString()} 次每天</div>`,
+  ].join("");
+  $("#providers").innerHTML = `<table><thead><tr><th>预设</th><th>识别主</th><th>识别备</th><th>翻译</th><th>精修</th><th>密钥</th></tr></thead><tbody>` +
+    d.providers.map((p) => `<tr><td>${p.code} <span class="sub">${p.name || ""}</span></td><td>${p.sttApi}/${p.sttModel}</td><td>${p.sttFallback || "-"}</td><td>${p.chatModel}</td><td>${p.refineModel || "-"}${p.refineApi ? " (" + p.refineApi + ")" : ""}</td><td>${p.hasKey ? "<span class=tag class=ok>已配置</span>" : "<span class=tag class=bad>未配置</span>"}</td></tr>`).join("") + `</tbody></table>`;
+}
+async function loadUsage() {
+  const r = await fetch("/api/usage?token=" + encodeURIComponent(TOK)); const d = await r.json();
+  if (!r.ok) throw new Error(d.error || r.status);
+  $("#rows").innerHTML = (d.topIps || []).map((x) => `<tr><td>${x.ip}</td><td>${fmt(x.sttMinutes,1)}</td><td>${x.translateCalls}</td><td>${fmt(x.cost,3)}</td></tr>`).join("") || "<tr><td colspan=4>今天还没有用量</td></tr>";
+  $("#prices").textContent = `单价：识别 ¥${d.cost.prices.sttPerHour}/小时 · 翻译 输入 ¥${d.cost.prices.inPerM}/百万token、输出 ¥${d.cost.prices.outPerM}/百万token（可在服务端环境变量调整）`;
+}
+async function loadLibs() {
+  const r = await api("libraries"); const d = await r.json();
+  if (!r.ok) throw new Error(d.error || r.status);
+  $("#fixCount").textContent = Object.keys(d.fixes).length + " 条";
+  $("#fixRows").innerHTML = Object.entries(d.fixes).map(([k,v]) => `<tr><td>${k}</td><td>${v}</td><td><button data-k="fix" data-key="${k}">删除</button></td></tr>`).join("") || "<tr><td colspan=3>暂无（客户用「✏️纠错」后会出现在这里）</td></tr>";
+  $("#termCount").textContent = Object.keys(d.glossaryAuto).length + " 条";
+  $("#termRows").innerHTML = Object.entries(d.glossaryAuto).map(([k,v]) => `<tr><td>${k}</td><td>${v.zh || v}</td><td><button data-k="term" data-key="${k}">删除</button></td></tr>`).join("") || "<tr><td colspan=3>暂无</td></tr>";
+  $("#oralCount").textContent = Object.keys(d.oralAuto).length + " 条";
+  $("#oralRows").innerHTML = Object.entries(d.oralAuto).map(([k,v]) => `<tr><td>${k}</td><td>${v.val || v}</td><td><button data-k="oral" data-key="${k}">删除</button></td></tr>`).join("") || "<tr><td colspan=3>暂无</td></tr>";
+  document.querySelectorAll("#tab-lib button[data-key]").forEach((b) => { b.onclick = async () => {
+    b.disabled = true;
+    const res = await api("library/delete", { method: "POST", body: JSON.stringify({ kind: b.dataset.k, key: b.dataset.key }) });
+    if (res.ok) loadLibs(); else { alert("删除失败"); b.disabled = false; }
+  }; });
+}
+async function loadLogs() {
+  const r = await api("logs"); const d = await r.json();
+  if (!r.ok) throw new Error(d.error || r.status);
+  $("#logBox").innerHTML = (d.logs || []).map((x) => `<div class="${x.level}">${new Date(x.t).toLocaleTimeString()} [${x.level}] ${x.msg}</div>`).join("") || "<div>暂无日志</div>";
+}
+function showTab(t) {
+  ["ov","use","lib","log"].forEach((k) => { $("#tab-" + k).hidden = (k !== t); });
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+}
+document.querySelectorAll(".tabs button").forEach((b) => { b.onclick = () => { showTab(b.dataset.tab); reload(b.dataset.tab); }; });
+async function reload(t) {
+  try { $("#err").textContent = "加载中…";
+    if (t === "ov" || !t) await loadOverview();
+    if (t === "use" || !t) await loadUsage();
+    if (t === "lib" || !t) await loadLibs();
+    if (t === "log") await loadLogs();
+    $("#err").textContent = "";
+  } catch (e) { $("#err").textContent = "加载失败：" + e.message + "（口令是否正确？）"; }
+}
+$("#go").onclick = async () => { TOK = $("#tok").value.trim(); if (!TOK) { $("#err").textContent = "请先填写管理口令"; return; } localStorage.setItem("lb_admin_token", TOK); await reload(); };
+$("#clr").onclick = () => { localStorage.removeItem("lb_admin_token"); $("#tok").value = ""; TOK = ""; };
+$("#probe").onclick = async () => { $("#probeOut").textContent = "自检中…"; const r = await api("probe", { method: "POST" }); const d = await r.json(); $("#probeOut").textContent = JSON.stringify(d); };
+$("#logReload").onclick = () => loadLogs();
+$("#addBtn").onclick = async () => {
+  const kind = $("#addKind").value, key = $("#addKey").value.trim(), value = $("#addVal").value.trim();
+  if (!key || !value) { alert("请填写完整"); return; }
+  const r = await api("library/add", { method: "POST", body: JSON.stringify({ kind, key, value }) });
+  const d = await r.json();
+  if (!r.ok) { alert("添加失败：" + (d.error || r.status)); return; }
+  $("#addKey").value = ""; $("#addVal").value = ""; loadLibs();
+};
+$("#tok").value = localStorage.getItem("lb_admin_token") || "";
+if ($("#tok").value) { TOK = $("#tok").value; reload(); }
+setInterval(() => { if (TOK) { loadOverview().catch(() => {}); } }, 30000);
+</script>
+</body>
+</html>

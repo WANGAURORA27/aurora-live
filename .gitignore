@@ -1,0 +1,7 @@
+node_modules/
+.env
+profiles.json
+.DS_Store
+*.log
+.wrangler/
+__pycache__/

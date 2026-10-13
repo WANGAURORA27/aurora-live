@@ -1,0 +1,7 @@
+# LiveBridge 正式站点：自动 HTTPS（Let's Encrypt 生产环境）
+live.ourmetaverse.cn {
+    reverse_proxy 127.0.0.1:8787
+    tls {
+        ca https://acme-v02.api.letsencrypt.org/directory
+    }
+}

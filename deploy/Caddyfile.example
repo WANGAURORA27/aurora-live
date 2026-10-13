@@ -1,0 +1,9 @@
+# Caddy 自动申请与续期证书，最省事。
+# 安装 Caddy 后把本文件内容放 /etc/caddy/Caddyfile，然后 systemctl restart caddy
+
+tongchuan.example.com {          # ← 改成你的域名
+    reverse_proxy 127.0.0.1:8787
+    header {
+        -Server
+    }
+}

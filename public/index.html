@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1020" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="format-detection" content="telephone=no" />
+<title>LiveBridge · 实时同声传译</title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23e8a33d'/%3E%3Cpath d='M38 32v36l28-18z' fill='%231a1208'/%3E%3C/svg%3E" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo"><span class="play">▶</span></div>
+    <div>
+      <h1>LiveBridge <em>同声传译</em></h1>
+      <p class="sub">实时同声传译 · 边说边译</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <span id="envBadge" class="badge dim" hidden></span>
+    <button id="btnAdmin" class="ghost" title="管理员面板（快捷键 Cmd/Ctrl+Shift+A）">🛠</button>
+    <button id="btnSettings" class="ghost" title="设置">⚙ 设置</button>
+  </div>
+</header>
+
+<main>
+  <!-- 模式与方向控制 -->
+  <section class="controls card">
+    <div class="seg" id="modeSeg">
+      <button data-mode="oneway" class="on">单向同传</button>
+      <button data-mode="duo">双人对话</button>
+    </div>
+
+    <div id="onewayRow" class="dir-row">
+      <label>源语言
+        <select id="srcLang"></select>
+      </label>
+      <span class="arrow">➜</span>
+      <div class="targets">
+        <label>译入语言</label>
+        <div class="chipbar" id="targetChips"></div>
+      </div>
+    </div>
+
+    <div id="duoRow" class="dir-row" hidden>
+      <label>说话人 A
+        <select id="speakerA" class="sp-a"></select>
+      </label>
+      <span class="arrow">⇄</span>
+      <label>说话人 B
+        <select id="speakerB" class="sp-b"></select>
+      </label>
+      <div class="who">
+        <label>正在说话</label>
+        <div class="chipbar" id="whoSeg">
+          <button data-who="auto" class="on">自动</button>
+          <button data-who="A">A</button>
+          <button data-who="B">B</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 现在正在说的话（同传字幕条） -->
+  <section id="liveBar" class="card live-bar">
+    <div class="live-now">
+      <span class="rec-dot"></span>
+      <span id="liveLabel">准备就绪</span>
+    </div>
+    <p id="liveText" class="live-text">点击下方麦克风开始。建议佩戴耳机使用。</p>
+    <p id="livePreview" class="live-preview" hidden></p>
+    <span id="sttSrc" class="fb-state" title="当前实时英文来自哪个识别通道"></span>
+    <div id="meter" class="meter" title="麦克风音量">
+      <div id="meterFill" class="meter-fill"></div>
+    </div>
+  </section>
+
+  <!-- 记录流工具栏 -->
+  <section class="feedbar">
+    <button id="btnFix" class="ghost" title="识别错了？改一次，系统永久记住">✏️ 纠错</button>
+    <span id="capState" class="fb-state"></span>
+  </section>
+
+  <!-- 段落流面板：边说边显示原文+译文，停顿后定稿成段落卡片 -->
+  <section id="paraPanel" class="card para" hidden>
+    <div class="para-head"><span class="para-lang"></span><span class="para-stat">聆听中…</span></div>
+    <div class="para-orig"></div>
+    <div class="para-tr"></div>
+  </section>
+
+  <!-- 双语分屏：上面全英文、下面全中文 -->
+  <section id="dual" class="dual" hidden>
+    <div class="dual-pane"><div class="dual-label">原 文 · English</div><div class="dual-body" id="dualEn"></div></div>
+    <div class="dual-pane"><div class="dual-label">译 文 · 中文</div><div class="dual-body" id="dualZh"></div></div>
+  </section>
+
+  <!-- 翻译记录流 -->
+  <section id="feed" class="feed"></section>
+  <div id="feedEmpty" class="empty">
+    <div class="empty-icon">🌐</div>
+    <p>译文与原文将以“句子卡片”形式实时流出</p>
+    <p class="dim2">说话停顿约 0.5s 后自动成段</p>
+  </div>
+</main>
+
+<!-- 底部控制条 -->
+<footer class="dock">
+  <div class="dock-inner">
+    <button id="btnMic" class="mic" title="开始/停止同传">
+      <span class="mic-icon">🎙</span>
+      <span id="micLabel">开始</span>
+    </button>
+    <div class="dock-stats">
+      <div class="stat"><b id="statSegs">0</b><span>句</span></div>
+      <div class="stat"><b id="statLat">–</b><span>句延迟 ms</span></div>
+      <div class="stat"><b id="statSpk">–</b><span>当前播报</span></div>
+    </div>
+    <div class="dock-btns">
+      <button id="btnReplayLast" class="ghost sm" title="重播上一条译文">↻ 重播</button>
+      <button id="btnClear" class="ghost sm">清空</button>
+      <button id="btnExport" class="ghost sm">导出</button>
+    </div>
+  </div>
+</footer>
+
+<!-- 设置抽屉 -->
+<div id="settings" class="drawer" hidden>
+  <div class="drawer-panel">
+  <div class="drawer-head">
+    <h2>设置</h2>
+    <button id="btnCloseSettings" class="ghost">✕</button>
+  </div>
+  <div class="drawer-body">
+
+    <h3>常用</h3>
+    <label>预设代号（管理员提供 · 免配密钥）
+      <select id="setProfile"></select>
+    </label>
+    <p class="hint" id="profileNote"></p>
+    <label class="chk"><input id="setVoiceOn" type="checkbox" /> 自动播报译文语音</label>
+    <label class="chk"><input id="setPreview" type="checkbox" checked /> 实时草稿：说的时候译文立即出现并随语音修正</label>
+    <label class="chk"><input id="setParaMode" type="checkbox" checked /> 段落模式：原文与译文并肩实时刷新</label>
+    <div class="row2">
+      <label>静音成段 <input id="setTail" type="range" min="300" max="2000" step="50" value="700" /><span class="val" id="tailVal">700 ms</span></label>
+      <label>最长片段 <input id="setMaxSeg" type="range" min="4000" max="20000" step="1000" value="10000" /><span class="val" id="maxSegVal">10 s</span></label>
+    </div>
+
+    <details class="adv">
+      <summary>高级设置</summary>
+      <div class="adv-body">
+
+        <h3>API 服务</h3>
+        <p class="hint">默认用服务端预设即可；没有代号时才需要手动填写（密钥仅存本机浏览器）。解析顺序：手动填写 &gt; 预设代号 &gt; 服务端 .env。</p>
+        <div class="row2">
+          <label>服务预设
+            <select id="setProvider">
+              <option value="">自定义 / 使用服务端配置</option>
+              <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="siliconflow">硅基流动 SiliconFlow</option>
+              <option value="groq">Groq（仅翻译）</option>
+              <option value="moonshot">Moonshot（仅翻译）</option>
+              <option value="minimax">MiniMax（翻译+语音）</option>
+            </select>
+          </label>
+          <label>Base URL
+            <input id="setBase" type="text" placeholder="如 https://api.openai.com/v1" />
+          </label>
+          <label>API Key
+            <input id="setKey" type="password" placeholder="sk-…（留空=使用服务端）" />
+          </label>
+        </div>
+        <div class="row2">
+          <label>翻译模型（定稿·质量优先）
+            <input id="setChatModel" type="text" placeholder="Pro/deepseek-ai/DeepSeek-V3.2" />
+          </label>
+          <label>实时草稿模型（小模型·速度优先）
+            <input id="setLiveModel" type="text" placeholder="Qwen/Qwen2.5-7B-Instruct（留空=用主模型）" />
+          </label>
+          <label>识别模型
+            <input id="setSttModel" type="text" placeholder="whisper-1" />
+          </label>
+        </div>
+        <div class="row2">
+          <label>云端 TTS 模型
+            <input id="setTtsModel" type="text" placeholder="tts-1" />
+          </label>
+          <label>云端 TTS 音色
+            <select id="setTtsVoice">
+              <option value="nova">nova（推荐·女声）</option>
+              <option value="alloy">alloy（中性）</option>
+              <option value="echo">echo（男声）</option>
+              <option value="fable">fable（英式男声）</option>
+              <option value="onyx">onyx（沉稳男声）</option>
+              <option value="shimmer">shimmer（女声）</option>
+            </select>
+          </label>
+        </div>
+        <div class="row2">
+          <button id="btnTestApi" class="primary sm">测试连接（翻译）</button>
+          <button id="btnTestStt" class="primary sm">测试识别通道</button>
+          <span id="testResult" class="test-result"></span>
+        </div>
+        <p class="hint">“测试识别通道”不经过麦克风：向服务商的 /audio/transcriptions 发一段无声样本探测。</p>
+
+        <h3>识别与合成引擎</h3>
+        <div class="row2">
+          <label>语音识别
+            <select id="setSttEngine">
+              <option value="auto">自动推荐（云端实时流式优先）</option>
+              <option value="realtime">云端实时流式（边说边出字，豆包级）</option>
+              <option value="cloud">云端整段（停顿后上传：更省）</option>
+              <option value="native">浏览器引擎（Chrome/Edge 免费）</option>
+            </select>
+          </label>
+          <label>语音合成
+            <select id="setTtsEngine">
+              <option value="cloud">云端 TTS（音质好）</option>
+              <option value="web">浏览器语音合成（免费）</option>
+              <option value="auto">自动：云端优先，失败回退浏览器</option>
+            </select>
+          </label>
+        </div>
+        <div class="row2">
+          <label>译文语速 <input id="setRate" type="range" min="0.6" max="1.5" step="0.05" value="1" /><span id="rateVal" class="val">1.0</span></label>
+          <label class="chk"><input id="setMonitor" type="checkbox" /> 监听自己的声音（回环）<em class="warn" id="monitorWarn">会啸叫，务必戴耳机！</em></label>
+          <label class="chk"><input id="setClean" type="checkbox" checked /> 清洗识别文本后再翻译</label>
+          <label class="chk"><input id="setCtx" type="checkbox" checked /> 翻译带上文</label>
+          <label>灵敏度 <input id="setSense" type="range" min="1" max="10" step="1" value="5" /><span class="val" id="senseVal">5</span></label>
+        </div>
+
+        <h3>译文风格与记忆</h3>
+        <div class="row2">
+          <label>领域风格
+            <select id="setDomain">
+              <option value="auto">通用（自动）</option>
+              <option value="tech">计算机 / 技术课程</option>
+              <option value="class">课堂教学</option>
+              <option value="academic">学术讲座</option>
+              <option value="business">商务会议</option>
+              <option value="medical">医学</option>
+              <option value="legal">法律</option>
+            </select>
+          </label>
+          <label>上下文记忆（轮）
+            <input id="setCtxRounds" type="number" min="2" max="12" step="1" value="5" />
+          </label>
+        </div>
+        <label class="chk"><input id="setRefineGpt" type="checkbox" checked /> 定稿用精修模型重译一遍（更准）</label>
+        <label class="chk"><input id="setVoiceBoost" type="checkbox" /> 浏览器语音增强（降噪+自动增益）——听不清时可关掉试试</label>
+        <label>额外要求（可留空）
+          <input id="setNotes" type="text" placeholder="对译文风格的额外要求（可选）" />
+        </label>
+        <p class="hint" id="glossaryInfo"></p>
+        <label>自定义术语（每行一条：英文=中文）
+          <textarea id="setGlossary" rows="3" placeholder="GCC=GCC 编译器&#10;machine code=机器码"></textarea>
+        </label>
+        <p class="hint"><a href="/usage.html" target="_blank" rel="noopener">📊 用量 / 成本看板</a> ｜ <a href="/admin.html" target="_blank" rel="noopener">🛠 管理员面板</a>（快捷键 Cmd/Ctrl+Shift+A）</p>
+      </div>
+    </details>
+
+    <h3>关于</h3>
+    <p class="hint">说话停顿即自动成句，边听边识别、边翻译、边播报，实现“同声”体验。详见项目 README。</p>
+  </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>

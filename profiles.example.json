@@ -1,0 +1,23 @@
+{
+  "_说明": "复制本文件为 profiles.json 并填写你的密钥。密钥只存在于服务端，使用者在页面输入 code 即可使用。",
+  "snow": {
+    "name": "硅基流动 · 共享号",
+    "note": "DeepSeek-V3 翻译 + SenseVoice 识别",
+    "baseUrl": "https://api.siliconflow.cn/v1",
+    "apiKey": "sk-你的硅基流动密钥",
+    "chatModel": "deepseek-ai/DeepSeek-V3",
+    "sttModel": "FunAudioLLM/SenseVoiceSmall",
+    "ttsModel": "",
+    "ttsVoice": ""
+  },
+  "openai": {
+    "name": "OpenAI 全链路",
+    "note": "识别/翻译/TTS 都有",
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKey": "sk-你的OpenAI密钥",
+    "chatModel": "gpt-4o-mini",
+    "sttModel": "whisper-1",
+    "ttsModel": "tts-1",
+    "ttsVoice": "nova"
+  }
+}

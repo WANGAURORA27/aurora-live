@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LiveBridge 用量 / 成本看板</title>
+<style>
+  :root{--bg:#0b1020;--panel:#141a2e;--panel2:#1b2340;--line:#28304d;--tx:#e8ecf8;--mut:#8f9ac0;--acc:#4da3ff;--ok:#37d67a;--warn:#ffb020;--red:#ff5c7a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1040px;margin:0 auto;padding:24px 18px 60px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--mut);font-size:12.5px;margin-bottom:18px}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  input,button{font:inherit;color:var(--tx);background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
+  input{min-width:280px}
+  button{cursor:pointer;background:#22305a}
+  button:hover{border-color:var(--acc)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .card .k{color:var(--mut);font-size:12px}
+  .card .v{font-size:24px;font-weight:650;margin-top:4px}
+  .card .v small{font-size:13px;font-weight:400;color:var(--mut)}
+  h2{font-size:15px;margin:22px 0 10px}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:500;font-size:12px}
+  tr:last-child td{border-bottom:none}
+  .lim{margin:10px 0}
+  .lim .t{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mut);margin-bottom:5px}
+  .track{height:8px;background:var(--panel2);border-radius:99px;overflow:hidden}
+  .fill{height:100%;background:linear-gradient(90deg,var(--acc),#7bd0ff)}
+  .fill.w{background:linear-gradient(90deg,var(--warn),#ffd48a)}
+  .fill.r{background:linear-gradient(90deg,var(--red),#ff9db0)}
+  .note{color:var(--mut);font-size:12.5px;margin-top:14px}
+  .err{color:var(--red);margin-top:10px;min-height:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📊 LiveBridge 用量 / 成本看板</h1>
+  <div class="sub">数据来自服务器当日统计（每次访问实时读取）。费用为估算值，可在服务端调整单价。</div>
+  <div class="bar">
+    <input id="tok" type="password" placeholder="管理口令 ADMIN_TOKEN（首次填写后会记住）" />
+    <button id="go">查询</button>
+    <button id="clr">清除口令</button>
+    <span class="sub" id="day" style="margin:0"></span>
+  </div>
+  <div class="err" id="err"></div>
+  <div class="cards" id="cards"></div>
+  <h2>额度使用情况</h2>
+  <div id="limits"></div>
+  <h2>访客明细（按用量排序，Top 20）</h2>
+  <table><thead><tr><th>IP</th><th>识别时长(分)</th><th>翻译调用</th><th>估算费用(元)</th></tr></thead><tbody id="rows"></tbody></table>
+  <p class="note" id="prices"></p>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const fmt = (n, d = 2) => (n === undefined || n === null) ? "-" : Number(n).toFixed(d);
+function bar(label, used, max, unit) {
+  const pct = max > 0 ? Math.min(100, (used / max) * 100) : 0;
+  const cls = pct >= 90 ? "r" : pct >= 70 ? "w" : "";
+  return `<div class="lim"><div class="t"><span>${label}</span><span>${fmt(used, 2)} / ${fmt(max, 2)} ${unit}（${fmt(pct, 1)}%）</span></div><div class="track"><div class="fill ${cls}" style="width:${pct}%"></div></div></div>`;
+}
+async function load() {
+  const tok = $("#tok").value.trim();
+  if (!tok) { $("#err").textContent = "请先填写管理口令（在服务器 /etc/systemd/system/livebridge.service.d/admin.conf 里）"; return; }
+  localStorage.setItem("lb_admin_token", tok);
+  $("#err").textContent = "查询中…";
+  try {
+    const r = await fetch("/api/usage?token=" + encodeURIComponent(tok));
+    const d = await r.json();
+    if (!r.ok) { $("#err").textContent = "查询失败：" + (d.error || r.status); return; }
+    $("#err").textContent = "";
+    $("#day").textContent = "统计日期：" + d.day;
+    const t = d.total, c = d.cost, L = d.limits;
+    $("#cards").innerHTML = [
+      `<div class="card"><div class="k">今日识别时长</div><div class="v">${fmt(t.sttHours, 2)} <small>小时</small></div></div>`,
+      `<div class="card"><div class="k">识别调用</div><div class="v">${t.sttCalls} <small>次</small></div></div>`,
+      `<div class="card"><div class="k">翻译调用</div><div class="v">${t.translateCalls} <small>次</small></div></div>`,
+      `<div class="card"><div class="k">估算费用</div><div class="v">¥${fmt(c.total, 3)}</div></div>`,
+      `<div class="card"><div class="k">访客数</div><div class="v">${(d.topIps || []).length}</div></div>`,
+      `<div class="card"><div class="k">处理字符</div><div class="v">${((t.charsIn || 0) + (t.charsOut || 0)).toLocaleString()} <small>(${t.tokensIn || 0}+${t.tokensOut || 0} tokens)</small></div></div>`,
+    ].join("");
+    const maxIp = (d.topIps || []).reduce((m, x) => Math.max(m, x.sttMinutes / 60), 0);
+    $("#limits").innerHTML = [
+      bar("单 IP 识别额度（今日最高使用者）", maxIp, L.perIpSttHours, "小时"),
+      bar("全站识别额度", t.sttHours, L.globalSttHours, "小时"),
+      bar("全站翻译调用额度", t.translateCalls, L.globalTranslateCalls, "次"),
+      `<div class="note">限额开关：${L.enabled ? "已启用" : "已关闭"}；单 IP 翻译上限 ${L.perIpTranslateCalls.toLocaleString()} 次/天</div>`,
+    ].join("");
+    $("#rows").innerHTML = (d.topIps || []).map((x) => `<tr><td>${x.ip}</td><td>${fmt(x.sttMinutes, 1)}</td><td>${x.translateCalls}</td><td>${fmt(x.cost, 3)}</td></tr>`).join("") || "<tr><td colspan=4>今天还没有用量</td></tr>";
+    $("#prices").textContent = `估算单价：识别 ¥${c.prices.sttPerHour}/小时；翻译 输入 ¥${c.prices.inPerM}/百万token、输出 ¥${c.prices.outPerM}/百万token（${c.note}）`;
+  } catch (e) { $("#err").textContent = "网络错误：" + e.message; }
+}
+$("#go").onclick = load;
+$("#clr").onclick = () => { localStorage.removeItem("lb_admin_token"); $("#tok").value = ""; };
+$("#tok").value = localStorage.getItem("lb_admin_token") || "";
+if ($("#tok").value) load();
+setInterval(() => { if ($("#tok").value) load(); }, 60000);
+</script>
+</body>
+</html>
