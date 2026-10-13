@@ -62,5 +62,5 @@ wrangler deploy -c cf/live/wrangler.staging.toml      #   部署测试环境
 ## 识别引擎
 
 - **云端实时流式**：`qwen3-asr-flash-realtime`，WebSocket 逐字返回部分结果
-- **云端整段**：`qwen3-asr-flash` 主通道 + `SenseVoiceSmall`（免费）兜底
-- **浏览器本地**：Chrome/Edge 自带的 Web Speech API（免费，无需密钥）
+- **云端整段**：`qwen3-asr-flash` 主通道 + `SenseVoiceSmall`
+- **浏览器本地**：Chrome/Edge 自带的 Web Speech API
